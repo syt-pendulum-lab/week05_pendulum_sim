@@ -28,10 +28,92 @@
     letter-spacing: 1px;
     opacity: 0.5;
   }
+  .controls {
+    position: fixed;
+    bottom: 48px;
+    display: flex;
+    gap: 28px;
+    align-items: flex-end;
+    background: rgba(30, 30, 46, 0.85);
+    border: 1px solid rgba(100, 100, 140, 0.15);
+    border-radius: 8px;
+    padding: 14px 24px;
+    backdrop-filter: blur(6px);
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .control-group label {
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    color: #6a6a8a;
+  }
+  .control-group .value {
+    font-size: 12px;
+    color: #88aaff;
+    min-width: 48px;
+    text-align: center;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 110px;
+    height: 4px;
+    background: rgba(100, 100, 140, 0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #4a9eff;
+    border: 2px solid #1a1a24;
+    box-shadow: 0 0 6px rgba(74, 158, 255, 0.5);
+  }
+  .reset-btn {
+    background: rgba(74, 158, 255, 0.12);
+    border: 1px solid rgba(74, 158, 255, 0.3);
+    color: #88aaff;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    padding: 6px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: background 0.2s;
+  }
+  .reset-btn:hover {
+    background: rgba(74, 158, 255, 0.22);
+  }
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
+<div class="controls">
+  <div class="control-group">
+    <label>摆长 L (px)</label>
+    <input type="range" id="sliderL" min="100" max="350" value="200" step="1">
+    <span class="value" id="valL">200</span>
+  </div>
+  <div class="control-group">
+    <label>重力 g</label>
+    <input type="range" id="sliderG" min="1" max="25" value="9.8" step="0.1">
+    <span class="value" id="valG">9.8</span>
+  </div>
+  <div class="control-group">
+    <label>阻尼</label>
+    <input type="range" id="sliderD" min="0" max="0.01" value="0.001" step="0.001">
+    <span class="value" id="valD">0.001</span>
+  </div>
+  <button class="reset-btn" id="resetBtn">重置摆动</button>
+</div>
 <div class="info">单摆模拟器 · 沙雨桐 · 7904126049</div>
 <script>
 const canvas = document.getElementById('canvas');
@@ -41,10 +123,10 @@ canvas.width = 600;
 canvas.height = 500;
 
 const PIVOT = { x: canvas.width / 2, y: 80 };
-const L = 200;
-const G = 9.8;
+let L = 200;
+let G = 9.8;
 const SCALE = 0.05;
-const DAMPING = 0.999;
+let DAMPING = 0.999;
 const BOB_RADIUS = 18;
 
 let theta = Math.PI / 4;
@@ -195,6 +277,36 @@ function draw(timestamp) {
 }
 
 requestAnimationFrame(draw);
+
+const sliderL = document.getElementById('sliderL');
+const sliderG = document.getElementById('sliderG');
+const sliderD = document.getElementById('sliderD');
+const valL = document.getElementById('valL');
+const valG = document.getElementById('valG');
+const valD = document.getElementById('valD');
+const resetBtn = document.getElementById('resetBtn');
+
+sliderL.addEventListener('input', () => {
+  L = parseFloat(sliderL.value);
+  valL.textContent = L;
+});
+
+sliderG.addEventListener('input', () => {
+  G = parseFloat(sliderG.value);
+  valG.textContent = G.toFixed(1);
+});
+
+sliderD.addEventListener('input', () => {
+  const d = parseFloat(sliderD.value);
+  DAMPING = 1 - d;
+  valD.textContent = d.toFixed(3);
+});
+
+resetBtn.addEventListener('click', () => {
+  theta = Math.PI / 4;
+  omega = 0;
+  trail = [];
+});
 </script>
 </body>
 </html>
