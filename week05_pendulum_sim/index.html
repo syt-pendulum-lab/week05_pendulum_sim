@@ -112,7 +112,7 @@
     <input type="range" id="sliderD" min="0" max="0.01" value="0.001" step="0.001">
     <span class="value" id="valD">0.001</span>
   </div>
-  <button class="reset-btn" id="resetBtn">重置摆动</button>
+  <button class="reset-btn" onclick="resetAnimation()">重置摆动</button>
 </div>
 <div class="info">单摆模拟器 · 沙雨桐 · 7904126049</div>
 <script>
@@ -284,7 +284,6 @@ const sliderD = document.getElementById('sliderD');
 const valL = document.getElementById('valL');
 const valG = document.getElementById('valG');
 const valD = document.getElementById('valD');
-const resetBtn = document.getElementById('resetBtn');
 
 sliderL.addEventListener('input', () => {
   L = parseFloat(sliderL.value);
@@ -302,11 +301,11 @@ sliderD.addEventListener('input', () => {
   valD.textContent = d.toFixed(3);
 });
 
-resetBtn.addEventListener('click', () => {
+function resetAnimation() {
   theta = Math.PI / 4;
   omega = 0;
   trail = [];
-});
+}
 </script>
 </body>
 </html>
