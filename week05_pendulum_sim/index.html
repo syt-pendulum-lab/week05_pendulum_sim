@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单摆模拟器 - Week 05</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a24;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Consolas', 'Courier New', monospace;
+    color: #8888aa;
+  }
+  canvas {
+    display: block;
+    border-radius: 8px;
+  }
+  .info {
+    position: fixed;
+    bottom: 20px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div class="info">单摆模拟器 · 沙雨桐 · 7904126049</div>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+canvas.width = 600;
+canvas.height = 500;
+
+const PIVOT = { x: canvas.width / 2, y: 80 };
+const L = 200;
+const G = 9.8;
+const SCALE = 0.05;
+const DAMPING = 0.999;
+const BOB_RADIUS = 18;
+
+let theta = Math.PI / 4;
+let omega = 0;
+let trail = [];
+const MAX_TRAIL = 60;
+
+let lastTime = null;
+
+function update(dt) {
+  const steps = 4;
+  const subDt = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    const alpha = -(G / (L * SCALE)) * Math.sin(theta);
+    omega += alpha * subDt;
+    omega *= DAMPING;
+    theta += omega * subDt;
+  }
+}
+
+function getBobPos() {
+  return {
+    x: PIVOT.x + L * Math.sin(theta),
+    y: PIVOT.y + L * Math.cos(theta)
+  };
+}
+
+function drawBackground() {
+  ctx.fillStyle = '#1a1a24';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = 'rgba(100, 100, 140, 0.06)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < canvas.width; x += 40) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y < canvas.height; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+
+function drawTrail(bob) {
+  trail.push({ x: bob.x, y: bob.y });
+  if (trail.length > MAX_TRAIL) trail.shift();
+
+  for (let i = 1; i < trail.length; i++) {
+    const alpha = (i / trail.length) * 0.35;
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(100, 180, 255, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+    ctx.lineTo(trail[i].x, trail[i].y);
+    ctx.stroke();
+  }
+}
+
+function drawPendulum(bob) {
+  ctx.beginPath();
+  ctx.moveTo(PIVOT.x, PIVOT.y);
+  ctx.lineTo(bob.x, bob.y);
+  ctx.strokeStyle = 'rgba(180, 180, 210, 0.7)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const glow = ctx.createRadialGradient(bob.x, bob.y, 0, bob.x, bob.y, BOB_RADIUS * 3);
+  glow.addColorStop(0, 'rgba(100, 180, 255, 0.25)');
+  glow.addColorStop(0.5, 'rgba(100, 180, 255, 0.06)');
+  glow.addColorStop(1, 'rgba(100, 180, 255, 0)');
+  ctx.beginPath();
+  ctx.arc(bob.x, bob.y, BOB_RADIUS * 3, 0, Math.PI * 2);
+  ctx.fillStyle = glow;
+  ctx.fill();
+
+  const grad = ctx.createRadialGradient(
+    bob.x - BOB_RADIUS * 0.3, bob.y - BOB_RADIUS * 0.3, BOB_RADIUS * 0.1,
+    bob.x, bob.y, BOB_RADIUS
+  );
+  grad.addColorStop(0, '#a0d4ff');
+  grad.addColorStop(0.6, '#4a9eff');
+  grad.addColorStop(1, '#2266cc');
+  ctx.beginPath();
+  ctx.arc(bob.x, bob.y, BOB_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(bob.x, bob.y, BOB_RADIUS, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(100, 180, 255, 0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawPivot() {
+  ctx.beginPath();
+  ctx.arc(PIVOT.x, PIVOT.y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#667';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(PIVOT.x - 30, PIVOT.y);
+  ctx.lineTo(PIVOT.x + 30, PIVOT.y);
+  ctx.strokeStyle = 'rgba(120, 120, 150, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawAngleArc() {
+  const arcR = 40;
+  ctx.beginPath();
+  ctx.moveTo(PIVOT.x, PIVOT.y);
+  ctx.arc(PIVOT.x, PIVOT.y, arcR, Math.PI / 2 - Math.abs(theta), Math.PI / 2, theta > 0);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(100, 180, 255, 0.08)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(PIVOT.x, PIVOT.y, arcR, Math.PI / 2 - Math.abs(theta), Math.PI / 2, theta > 0);
+  ctx.strokeStyle = 'rgba(100, 180, 255, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const deg = (theta * 180 / Math.PI).toFixed(1);
+  ctx.fillStyle = 'rgba(100, 180, 255, 0.5)';
+  ctx.font = '11px Consolas, monospace';
+  ctx.fillText(`θ = ${deg}°`, PIVOT.x + 12, PIVOT.y + arcR + 16);
+}
+
+function draw(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+
+  update(dt);
+  const bob = getBobPos();
+
+  drawBackground();
+  drawTrail(bob);
+  drawAngleArc();
+  drawPivot();
+  drawPendulum(bob);
+
+  requestAnimationFrame(draw);
+}
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
