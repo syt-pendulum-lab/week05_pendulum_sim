@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>单摆模拟器 - Week 05</title>
+<title>双摆模拟器 - Week 05</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -20,7 +20,9 @@
   canvas {
     display: block;
     border-radius: 8px;
+    cursor: grab;
   }
+  canvas:active { cursor: grabbing; }
   .info {
     position: fixed;
     bottom: 20px;
@@ -124,20 +126,20 @@
 <body>
 <canvas id="canvas"></canvas>
 <div class="scenes">
-  <button class="scene-btn" data-scene="earth" onclick="applyScene('earth')">🌍 地球</button>
+  <button class="scene-btn" data-scene="earth" onclick="applyScene('earth')"> 地球</button>
   <button class="scene-btn" data-scene="moon" onclick="applyScene('moon')">🌙 月球</button>
-  <button class="scene-btn" data-scene="jupiter" onclick="applyScene('jupiter')"> 木星</button>
+  <button class="scene-btn" data-scene="jupiter" onclick="applyScene('jupiter')">🟤 木星</button>
   <button class="scene-btn" data-scene="space" onclick="applyScene('space')">🌌 太空</button>
 </div>
 <div class="controls">
   <div class="control-group">
     <label>摆长 L (px)</label>
-    <input type="range" id="sliderL" min="100" max="350" value="200" step="1">
-    <span class="value" id="valL">200</span>
+    <input type="range" id="sliderL" min="60" max="200" value="150" step="1">
+    <span class="value" id="valL">150</span>
   </div>
   <div class="control-group">
     <label>重力 g</label>
-    <input type="range" id="sliderG" min="1" max="25" value="9.8" step="0.1">
+    <input type="range" id="sliderG" min="0.1" max="25" value="9.8" step="0.1">
     <span class="value" id="valG">9.8</span>
   </div>
   <div class="control-group">
@@ -147,7 +149,7 @@
   </div>
   <button class="reset-btn" onclick="resetAnimation()">重置摆动</button>
 </div>
-<div class="info">单摆模拟器 · 沙雨桐 · 7904126049</div>
+<div class="info">双摆模拟器 · 沙雨桐 · 7904126049</div>
 <script>
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -155,38 +157,82 @@ const ctx = canvas.getContext('2d');
 canvas.width = 600;
 canvas.height = 500;
 
-const PIVOT = { x: canvas.width / 2, y: 80 };
-let L = 200;
+const PIVOT = { x: canvas.width / 2, y: 60 };
+let L = 150;
 let G = 9.8;
 let targetG = 9.8;
-const SCALE = 0.05;
+const SCALE = 0.04;
 let DAMPING = 0.999;
-const BOB_RADIUS = 18;
+const BOB_RADIUS = 14;
 
-let theta = Math.PI / 4;
-let omega = 0;
+let theta1 = Math.PI * 0.75;
+let omega1 = 0;
+let theta2 = Math.PI * 0.75;
+let omega2 = 0;
+
+let state = [theta1, omega1, theta2, omega2];
+
 let trail = [];
-const MAX_TRAIL = 60;
+const MAX_TRAIL = 300;
 
+let dragging = null;
 let lastTime = null;
+
+function derivatives(s) {
+  const t1 = s[0], w1 = s[1], t2 = s[2], w2 = s[3];
+  const dt = t1 - t2;
+  const sinDt = Math.sin(dt);
+  const cosDt = Math.cos(dt);
+  const sin2Dt = Math.sin(2 * dt);
+  const denom = 2 - cosDt * cosDt;
+
+  const a1 = (-G * (2 * Math.sin(t1) - Math.sin(t2) * cosDt)
+    - w2 * w2 * L * sinDt
+    - w1 * w1 * L * sin2Dt * 0.5) / (L * SCALE * denom);
+
+  const a2 = (2 * sinDt * (w1 * w1 * L * 2
+    + G * Math.cos(t1) * 2
+    + w2 * w2 * L * cosDt)) / (L * SCALE * 2 * denom);
+
+  return [w1, a1, w2, a2];
+}
+
+function rk4Step(s, dt) {
+  const k1 = derivatives(s);
+  const s2 = s.map((v, i) => v + k1[i] * dt * 0.5);
+  const k2 = derivatives(s2);
+  const s3 = s.map((v, i) => v + k2[i] * dt * 0.5);
+  const k3 = derivatives(s3);
+  const s4 = s.map((v, i) => v + k3[i] * dt);
+  const k4 = derivatives(s4);
+  return s.map((v, i) => v + (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) * dt / 6);
+}
 
 function update(dt) {
   G += (targetG - G) * 0.05;
-  const steps = 4;
-  const subDt = dt / steps;
+  const steps = 8;
+  const subDt = Math.min(dt / steps, 0.004);
   for (let i = 0; i < steps; i++) {
-    const alpha = -(G / (L * SCALE)) * Math.sin(theta);
-    omega += alpha * subDt;
-    omega *= DAMPING;
-    theta += omega * subDt;
+    state = rk4Step(state, subDt);
+    state[1] *= DAMPING;
+    state[3] *= DAMPING;
   }
+  theta1 = state[0];
+  omega1 = state[1];
+  theta2 = state[2];
+  omega2 = state[3];
 }
 
-function getBobPos() {
-  return {
-    x: PIVOT.x + L * Math.sin(theta),
-    y: PIVOT.y + L * Math.cos(theta)
-  };
+function getPositions() {
+  const x1 = PIVOT.x + L * Math.sin(theta1);
+  const y1 = PIVOT.y + L * Math.cos(theta1);
+  const x2 = x1 + L * Math.sin(theta2);
+  const y2 = y1 + L * Math.cos(theta2);
+  return { x1, y1, x2, y2 };
+}
+
+function trailHue(index, total) {
+  return (index / total) * 360;
 }
 
 function drawBackground() {
@@ -209,55 +255,77 @@ function drawBackground() {
   }
 }
 
-function drawTrail(bob) {
-  trail.push({ x: bob.x, y: bob.y });
+function drawTrail(pos) {
+  trail.push({ x: pos.x2, y: pos.y2 });
   if (trail.length > MAX_TRAIL) trail.shift();
 
   for (let i = 1; i < trail.length; i++) {
-    const alpha = (i / trail.length) * 0.35;
+    const t = i / trail.length;
+    const hue = trailHue(i, trail.length);
+    const alpha = t * 0.7;
     ctx.beginPath();
-    ctx.strokeStyle = `rgba(100, 180, 255, ${alpha})`;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = `hsla(${hue}, 85%, 60%, ${alpha})`;
+    ctx.lineWidth = 1.5 + t * 1.5;
     ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
     ctx.lineTo(trail[i].x, trail[i].y);
     ctx.stroke();
   }
 }
 
-function drawPendulum(bob) {
+function drawPendulum(pos) {
   ctx.beginPath();
   ctx.moveTo(PIVOT.x, PIVOT.y);
-  ctx.lineTo(bob.x, bob.y);
-  ctx.strokeStyle = 'rgba(180, 180, 210, 0.7)';
+  ctx.lineTo(pos.x1, pos.y1);
+  ctx.strokeStyle = 'rgba(180, 180, 210, 0.6)';
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  const glow = ctx.createRadialGradient(bob.x, bob.y, 0, bob.x, bob.y, BOB_RADIUS * 3);
-  glow.addColorStop(0, 'rgba(100, 180, 255, 0.25)');
-  glow.addColorStop(0.5, 'rgba(100, 180, 255, 0.06)');
-  glow.addColorStop(1, 'rgba(100, 180, 255, 0)');
   ctx.beginPath();
-  ctx.arc(bob.x, bob.y, BOB_RADIUS * 3, 0, Math.PI * 2);
-  ctx.fillStyle = glow;
-  ctx.fill();
-
-  const grad = ctx.createRadialGradient(
-    bob.x - BOB_RADIUS * 0.3, bob.y - BOB_RADIUS * 0.3, BOB_RADIUS * 0.1,
-    bob.x, bob.y, BOB_RADIUS
-  );
-  grad.addColorStop(0, '#a0d4ff');
-  grad.addColorStop(0.6, '#4a9eff');
-  grad.addColorStop(1, '#2266cc');
-  ctx.beginPath();
-  ctx.arc(bob.x, bob.y, BOB_RADIUS, 0, Math.PI * 2);
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(bob.x, bob.y, BOB_RADIUS, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(100, 180, 255, 0.4)';
-  ctx.lineWidth = 1.5;
+  ctx.moveTo(pos.x1, pos.y1);
+  ctx.lineTo(pos.x2, pos.y2);
+  ctx.strokeStyle = 'rgba(180, 180, 210, 0.5)';
+  ctx.lineWidth = 2;
   ctx.stroke();
+
+  const glow1 = ctx.createRadialGradient(pos.x1, pos.y1, 0, pos.x1, pos.y1, BOB_RADIUS * 2.5);
+  glow1.addColorStop(0, 'rgba(100, 180, 255, 0.2)');
+  glow1.addColorStop(1, 'rgba(100, 180, 255, 0)');
+  ctx.beginPath();
+  ctx.arc(pos.x1, pos.y1, BOB_RADIUS * 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = glow1;
+  ctx.fill();
+
+  const grad1 = ctx.createRadialGradient(
+    pos.x1 - BOB_RADIUS * 0.3, pos.y1 - BOB_RADIUS * 0.3, BOB_RADIUS * 0.1,
+    pos.x1, pos.y1, BOB_RADIUS
+  );
+  grad1.addColorStop(0, '#c0e0ff');
+  grad1.addColorStop(0.6, '#4a9eff');
+  grad1.addColorStop(1, '#2266cc');
+  ctx.beginPath();
+  ctx.arc(pos.x1, pos.y1, BOB_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = grad1;
+  ctx.fill();
+
+  const glow2 = ctx.createRadialGradient(pos.x2, pos.y2, 0, pos.x2, pos.y2, BOB_RADIUS * 3);
+  glow2.addColorStop(0, 'rgba(255, 100, 180, 0.2)');
+  glow2.addColorStop(1, 'rgba(255, 100, 180, 0)');
+  ctx.beginPath();
+  ctx.arc(pos.x2, pos.y2, BOB_RADIUS * 3, 0, Math.PI * 2);
+  ctx.fillStyle = glow2;
+  ctx.fill();
+
+  const grad2 = ctx.createRadialGradient(
+    pos.x2 - BOB_RADIUS * 0.3, pos.y2 - BOB_RADIUS * 0.3, BOB_RADIUS * 0.1,
+    pos.x2, pos.y2, BOB_RADIUS
+  );
+  grad2.addColorStop(0, '#ffc0e0');
+  grad2.addColorStop(0.6, '#ff4a9e');
+  grad2.addColorStop(1, '#cc2266');
+  ctx.beginPath();
+  ctx.arc(pos.x2, pos.y2, BOB_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = grad2;
+  ctx.fill();
 }
 
 function drawPivot() {
@@ -274,24 +342,14 @@ function drawPivot() {
   ctx.stroke();
 }
 
-function drawAngleArc() {
-  const arcR = 40;
-  ctx.beginPath();
-  ctx.moveTo(PIVOT.x, PIVOT.y);
-  ctx.arc(PIVOT.x, PIVOT.y, arcR, Math.PI / 2 - Math.abs(theta), Math.PI / 2, theta > 0);
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(100, 180, 255, 0.08)';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(PIVOT.x, PIVOT.y, arcR, Math.PI / 2 - Math.abs(theta), Math.PI / 2, theta > 0);
-  ctx.strokeStyle = 'rgba(100, 180, 255, 0.3)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  const deg = (theta * 180 / Math.PI).toFixed(1);
-  ctx.fillStyle = 'rgba(100, 180, 255, 0.5)';
+function drawAngles(pos) {
+  const d1 = (theta1 * 180 / Math.PI).toFixed(1);
+  const d2 = (theta2 * 180 / Math.PI).toFixed(1);
+  ctx.fillStyle = 'rgba(100, 180, 255, 0.45)';
   ctx.font = '11px Consolas, monospace';
-  ctx.fillText(`θ = ${deg}°`, PIVOT.x + 12, PIVOT.y + arcR + 16);
+  ctx.fillText(`θ₁ = ${d1}°`, PIVOT.x + 36, PIVOT.y + 14);
+  ctx.fillStyle = 'rgba(255, 100, 180, 0.45)';
+  ctx.fillText(`θ₂ = ${d2}°`, pos.x1 + 20, pos.y1 + 4);
 }
 
 function draw(timestamp) {
@@ -299,19 +357,95 @@ function draw(timestamp) {
   const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
   lastTime = timestamp;
 
-  update(dt);
-  const bob = getBobPos();
+  if (!dragging) update(dt);
+  const pos = getPositions();
 
   drawBackground();
-  drawTrail(bob);
-  drawAngleArc();
+  drawTrail(pos);
   drawPivot();
-  drawPendulum(bob);
+  drawPendulum(pos);
+  drawAngles(pos);
 
   requestAnimationFrame(draw);
 }
 
 requestAnimationFrame(draw);
+
+canvas.addEventListener('mousedown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const pos = getPositions();
+
+  const d1 = Math.hypot(mx - pos.x1, my - pos.y1);
+  const d2 = Math.hypot(mx - pos.x2, my - pos.y2);
+
+  if (d2 < BOB_RADIUS * 3) {
+    dragging = 2;
+  } else if (d1 < BOB_RADIUS * 3) {
+    dragging = 1;
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (dragging === 1) {
+    theta1 = Math.atan2(mx - PIVOT.x, my - PIVOT.y);
+    omega1 = 0;
+    state = [theta1, 0, theta2, 0];
+  } else if (dragging === 2) {
+    const pos = getPositions();
+    theta2 = Math.atan2(mx - pos.x1, my - pos.y1);
+    omega2 = 0;
+    state = [theta1, omega1, theta2, 0];
+  }
+  trail = [];
+});
+
+canvas.addEventListener('mouseup', () => { dragging = null; });
+canvas.addEventListener('mouseleave', () => { dragging = null; });
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const mx = touch.clientX - rect.left;
+  const my = touch.clientY - rect.top;
+  const pos = getPositions();
+
+  const d1 = Math.hypot(mx - pos.x1, my - pos.y1);
+  const d2 = Math.hypot(mx - pos.x2, my - pos.y2);
+
+  if (d2 < BOB_RADIUS * 4) dragging = 2;
+  else if (d1 < BOB_RADIUS * 4) dragging = 1;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!dragging) return;
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const mx = touch.clientX - rect.left;
+  const my = touch.clientY - rect.top;
+
+  if (dragging === 1) {
+    theta1 = Math.atan2(mx - PIVOT.x, my - PIVOT.y);
+    omega1 = 0;
+    state = [theta1, 0, theta2, 0];
+  } else if (dragging === 2) {
+    const pos = getPositions();
+    theta2 = Math.atan2(mx - pos.x1, my - pos.y1);
+    omega2 = 0;
+    state = [theta1, omega1, theta2, 0];
+  }
+  trail = [];
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => { dragging = null; });
 
 const sliderL = document.getElementById('sliderL');
 const sliderG = document.getElementById('sliderG');
@@ -392,8 +526,11 @@ function loadParams() {
 loadParams();
 
 function resetAnimation() {
-  theta = Math.PI / 4;
-  omega = 0;
+  theta1 = Math.PI * 0.75;
+  omega1 = 0;
+  theta2 = Math.PI * 0.75;
+  omega2 = 0;
+  state = [theta1, omega1, theta2, omega2];
   trail = [];
 }
 </script>
