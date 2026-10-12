@@ -92,10 +92,43 @@
   .reset-btn:hover {
     background: rgba(74, 158, 255, 0.22);
   }
+  .scenes {
+    position: fixed;
+    bottom: 110px;
+    display: flex;
+    gap: 10px;
+  }
+  .scene-btn {
+    background: rgba(40, 40, 60, 0.8);
+    border: 1px solid rgba(100, 100, 140, 0.2);
+    color: #8888aa;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    padding: 6px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.25s;
+  }
+  .scene-btn:hover {
+    border-color: rgba(74, 158, 255, 0.4);
+    color: #aabbff;
+  }
+  .scene-btn.active {
+    background: rgba(74, 158, 255, 0.18);
+    border-color: rgba(74, 158, 255, 0.5);
+    color: #88aaff;
+  }
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
+<div class="scenes">
+  <button class="scene-btn" data-scene="earth" onclick="applyScene('earth')">🌍 地球</button>
+  <button class="scene-btn" data-scene="moon" onclick="applyScene('moon')">🌙 月球</button>
+  <button class="scene-btn" data-scene="jupiter" onclick="applyScene('jupiter')"> 木星</button>
+  <button class="scene-btn" data-scene="space" onclick="applyScene('space')">🌌 太空</button>
+</div>
 <div class="controls">
   <div class="control-group">
     <label>摆长 L (px)</label>
@@ -125,6 +158,7 @@ canvas.height = 500;
 const PIVOT = { x: canvas.width / 2, y: 80 };
 let L = 200;
 let G = 9.8;
+let targetG = 9.8;
 const SCALE = 0.05;
 let DAMPING = 0.999;
 const BOB_RADIUS = 18;
@@ -137,6 +171,7 @@ const MAX_TRAIL = 60;
 let lastTime = null;
 
 function update(dt) {
+  G += (targetG - G) * 0.05;
   const steps = 4;
   const subDt = dt / steps;
   for (let i = 0; i < steps; i++) {
@@ -288,18 +323,73 @@ const valD = document.getElementById('valD');
 sliderL.addEventListener('input', () => {
   L = parseFloat(sliderL.value);
   valL.textContent = L;
+  saveParams();
 });
 
 sliderG.addEventListener('input', () => {
   G = parseFloat(sliderG.value);
+  targetG = G;
   valG.textContent = G.toFixed(1);
+  document.querySelectorAll('.scene-btn').forEach(btn => btn.classList.remove('active'));
+  saveParams();
 });
 
 sliderD.addEventListener('input', () => {
   const d = parseFloat(sliderD.value);
   DAMPING = 1 - d;
   valD.textContent = d.toFixed(3);
+  saveParams();
 });
+
+const SCENES = {
+  earth:   { g: 9.8,  label: '地球' },
+  moon:    { g: 1.6,  label: '月球' },
+  jupiter: { g: 24.8, label: '木星' },
+  space:   { g: 0.1,  label: '太空' }
+};
+
+function applyScene(name) {
+  const scene = SCENES[name];
+  if (!scene) return;
+  targetG = scene.g;
+  sliderG.value = scene.g;
+  valG.textContent = scene.g.toFixed(1);
+  document.querySelectorAll('.scene-btn').forEach(btn => btn.classList.remove('active'));
+  const active = document.querySelector(`.scene-btn[data-scene="${name}"]`);
+  if (active) active.classList.add('active');
+  saveParams();
+}
+
+function saveParams() {
+  const data = {
+    L: L,
+    G: targetG,
+    damping: 1 - DAMPING,
+    scene: null
+  };
+  for (const [key, s] of Object.entries(SCENES)) {
+    if (Math.abs(targetG - s.g) < 0.05) { data.scene = key; break; }
+  }
+  try { localStorage.setItem('pendulum_params', JSON.stringify(data)); } catch (e) {}
+}
+
+function loadParams() {
+  try {
+    const raw = localStorage.getItem('pendulum_params');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.L != null) { L = data.L; sliderL.value = L; valL.textContent = L; }
+    if (data.G != null) { targetG = data.G; G = data.G; sliderG.value = data.G; valG.textContent = data.G.toFixed(1); }
+    if (data.damping != null) { DAMPING = 1 - data.damping; sliderD.value = data.damping; valD.textContent = data.damping.toFixed(3); }
+    if (data.scene) {
+      document.querySelectorAll('.scene-btn').forEach(btn => btn.classList.remove('active'));
+      const active = document.querySelector(`.scene-btn[data-scene="${data.scene}"]`);
+      if (active) active.classList.add('active');
+    }
+  } catch (e) {}
+}
+
+loadParams();
 
 function resetAnimation() {
   theta = Math.PI / 4;
